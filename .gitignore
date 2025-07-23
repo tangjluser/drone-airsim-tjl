@@ -1,0 +1,10 @@
+# 忽略 PyCharm 和 VS 配置
+.idea/
+__pycache__/
+*.pyc
+
+# 不上传大文件和日志
+*.log
+*.pkl
+*.mat
+*.vsidx
