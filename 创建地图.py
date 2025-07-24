@@ -12,8 +12,8 @@ points = [
 
 # 对每个点，设置中心以及周围 7 格范围内的点为1
 for x, y in points:
-    for dx in range(-9, 10):
-        for dy in range(-9, 10):
+    for dx in range(-10, 11):
+        for dy in range(-10, 11):
             nx, ny = x + dx, y + dy
             if 0 <= nx < 170 and 0 <= ny < 170:
                 matrix[ny][nx] = 1  # 注意行是y，列是x

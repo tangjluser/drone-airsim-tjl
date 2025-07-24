@@ -51,7 +51,7 @@ def dijkstra_with_diagonal(grid, start, goal):
         return []  # no path found
     return path
 
-def save_path_txt(path, filename="planned_path_output.txt"):
+def save_path_txt(path, filename="planned_path/planned_path_output.txt"):
     with open(filename, 'w') as f:
         for pt in path:
             f.write(f"{pt[0]},{pt[1]}\n")
@@ -62,9 +62,9 @@ def save_path_txt(path, filename="planned_path_output.txt"):
 if __name__ == "__main__":
     # 地图路径 & 起终点
     map_file = "map.txt"
-    output_file = "planned_path_output2.txt"
-    start = (100, 0)
-    goal = (0, 140)
+    output_file = "planned_path/planned_path_output8.txt"
+    start = (120,100)   #0,0      100,0  80,80    120,60  160,160  160,100   40,20    120,100
+    goal = (140,40)   #160,160  0,140  40,160   60,120  0,160    0,100     40,120   140,40
     # 加载地图
     grid_map = load_map(map_file)
     # 路径规划
