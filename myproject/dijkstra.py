@@ -5,7 +5,7 @@ import heapq
 def load_map(filepath):
     with open(filepath, 'r') as f:
         lines = f.readlines()
-    return np.array([[int(ch) for ch in line.strip()] for line in lines])
+    return np.array([[int(ch) for ch in line.strip().split()] for line in lines])
 def dijkstra_with_diagonal(grid, start, goal):
     rows, cols = grid.shape
     visited = np.full((rows, cols), False)
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     # 地图路径 & 起终点
     map_file = "map.txt"
     output_file = "planned_path_output2.txt"
-    start = (10, 0)
-    goal = (17, 16)
+    start = (100, 0)
+    goal = (0, 140)
     # 加载地图
     grid_map = load_map(map_file)
     # 路径规划

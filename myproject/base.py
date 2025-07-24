@@ -1,14 +1,22 @@
 import airsim
 import time
+import os
 
-#这里是我用来测试规划好路径的
 # ========== 通用参数 ==========
-ALTITUDE = -3.0  # 固定飞行高度（负数表示升高）
-SPEED = 1.0      # 飞行速度 m/s
-init_v_x=[0,10]  #多个无人机初始的点位，用于后期修正用的，因为每个无人机都会以自己的出生点为原点坐标而采用了相对坐标，而非世界坐标
-init_v_y=[0,0]
+ALTITUDE = -3.0    # 基础飞行高度（负数表示上升）
+SPEED = 1          # 飞行速度 m/s
+RATIO = 0.1        # 坐标缩放比
+NUM_DRONES = 2     # 无人机数量
 
-# ========== 读取路径函数 ==========
+# 每架无人机出生点偏移（相对坐标转为世界坐标）
+# init_v_x = [0 * RATIO + i * 10 * RATIO for i in range(NUM_DRONES)]
+# init_v_y = [0 * RATIO for _ in range(NUM_DRONES)]
+init_v_x = [0.0,10.0]
+init_v_y = [0.0,0.0]
+init_v_z = [-3.0,-4.0]
+
+
+# ========== 读取路径 ==========
 def read_path(file_path):
     path = []
     with open(file_path, 'r') as f:
@@ -17,84 +25,88 @@ def read_path(file_path):
             path.append((x, y))
     return path
 
-# ========== 主函数 ==========
-if __name__ == "__main__":
-    # 连接客户端
-    client = airsim.MultirotorClient()
-    client.confirmConnection()
 
-    # ======================
-    # 初始化 Drone1
-    # ======================
-    client.enableApiControl(True, vehicle_name="Drone1")
-    client.armDisarm(True, vehicle_name="Drone1")
-    client.takeoffAsync(vehicle_name="Drone1").join()
-    client.moveToZAsync(ALTITUDE, SPEED, vehicle_name="Drone1").join()
+# ========== 初始化起飞 ==========
+def initialize_and_takeoff(client, vehicle_names, altitude, speed):
+    tasks = []
+    for name in vehicle_names:
+        client.enableApiControl(True, vehicle_name=name)
+        client.armDisarm(True, vehicle_name=name)
+        tasks.append(client.takeoffAsync(vehicle_name=name))
+    for task in tasks:
+        task.join()
 
-    # ======================
-    # 初始化 Drone2
-    # ======================
-    client.enableApiControl(True, vehicle_name="Drone2")
-    client.armDisarm(True, vehicle_name="Drone2")
-    client.takeoffAsync(vehicle_name="Drone2").join()
-    client.moveToZAsync(ALTITUDE-1, SPEED, vehicle_name="Drone2").join()
+    tasks.clear()
+    for i, name in enumerate(vehicle_names):
+        # z = altitude - i * 0.5  # 避免垂直冲突
+        z = init_v_z[i]
+        tasks.append(client.moveToZAsync(z, speed, vehicle_name=name))
+    for task in tasks:
+        task.join()
 
-    # ======================
-    # 加载路径点
-    # ======================
-    path1 = read_path("planned_path_output1.txt")
-    path2 = read_path("planned_path_output2.txt")
 
-    trajectory1 = []
-    trajectory2 = []
-
-    # ======================
-    # 飞行逻辑：按最长路径同步执行
-    # ======================
-    max_len = max(len(path1), len(path2))
+# ========== 路径飞行 ==========
+def fly_trajectories(client, vehicle_paths, altitude_base, speed, ratio, init_x, init_y):
+    max_len = max(len(p) for p in vehicle_paths.values())
+    trajectory_record = {v: [] for v in vehicle_paths.keys()}
 
     for i in range(max_len):
         tasks = []
-
-        # --- Drone1 ---
-        if i < len(path1):
-            x1, y1 = path1[i]
-            tasks.append(client.moveToPositionAsync(x1-init_v_x[0], y1-init_v_y[0], ALTITUDE, SPEED, vehicle_name="Drone1"))
-            trajectory1.append(airsim.Vector3r(x1, y1, ALTITUDE))
-            client.simPlotLineStrip(trajectory1,
-                                    color_rgba=[0.0, 1.0, 0.0, 1.0],  # 绿色轨迹
-                                    thickness=10.0,
-                                    duration=120.0,
-                                    is_persistent=True)
-
-        # --- Drone2 ---
-        if i < len(path2):
-            x2, y2 = path2[i]
-            tasks.append(client.moveToPositionAsync(x2-init_v_x[1], y2-init_v_y[1], ALTITUDE-1, SPEED, vehicle_name="Drone2"))
-            trajectory2.append(airsim.Vector3r(x2, y2, ALTITUDE))
-            client.simPlotLineStrip(trajectory2,
-                                    color_rgba=[1.0, 0.0, 0.0, 1.0],  # 红色轨迹
-                                    thickness=10.0,
-                                    duration=120.0,
-                                    is_persistent=True)
-
+        for idx, (vehicle_name, path) in enumerate(vehicle_paths.items()):
+            if i < len(path):
+                px, py = path[i][0] * ratio, path[i][1] * ratio
+                z = altitude_base[idx]
+                tasks.append(client.moveToPositionAsync(px - init_x[idx], py - init_y[idx], z, speed, vehicle_name=vehicle_name))
+                trajectory_record[vehicle_name].append(airsim.Vector3r(px, py, z))
+                # 画轨迹 (可选)
+                client.simPlotLineStrip(
+                    trajectory_record[vehicle_name],
+                    color_rgba=[1.0 - idx * 0.1, 0.5, 0.2 + idx * 0.1, 1.0],
+                    thickness=10.0,
+                    duration=120.0,
+                    is_persistent=True
+                )
         for task in tasks:
             task.join()
 
-    # ======================
-    # 悬停 + 降落
-    # ======================
-    client.hoverAsync(vehicle_name="Drone1").join()
-    client.hoverAsync(vehicle_name="Drone2").join()
 
-    client.landAsync(vehicle_name="Drone1").join()
-    client.landAsync(vehicle_name="Drone2").join()
-
-    client.armDisarm(False, vehicle_name="Drone1")
-    client.armDisarm(False, vehicle_name="Drone2")
-    client.enableApiControl(False, vehicle_name="Drone1")
-    client.enableApiControl(False, vehicle_name="Drone2")
-
-    print("✅ 双无人机飞行任务完成！")
+# ========== 悬停并降落 ==========
+def hover_and_land(client, vehicle_names):
+    tasks = [client.hoverAsync(vehicle_name=v) for v in vehicle_names]
+    for t in tasks:
+        t.join()
+    tasks = [client.landAsync(vehicle_name=v) for v in vehicle_names]
+    for t in tasks:
+        t.join()
+    for v in vehicle_names:
+        client.armDisarm(False, vehicle_name=v)
+        client.enableApiControl(False, vehicle_name=v)
 
 
+# ========== 主函数 ==========
+if __name__ == "__main__":
+    client = airsim.MultirotorClient()
+    client.confirmConnection()
+
+    # 生成无人机名列表
+    vehicle_names = [f"Drone{i+1}" for i in range(NUM_DRONES)]
+
+    # 加载所有路径
+    vehicle_paths = {}
+    for i, name in enumerate(vehicle_names):
+        filename = f"planned_path_output{i+1}.txt"
+        if os.path.exists(filename):
+            vehicle_paths[name] = read_path(filename)
+        else:
+            print(f"⚠️ 路径文件缺失：{filename}，将跳过该无人机。")
+
+    # 初始化并起飞
+    initialize_and_takeoff(client, list(vehicle_paths.keys()), ALTITUDE, SPEED)
+
+    # 执行路径
+    fly_trajectories(client, vehicle_paths, init_v_z, SPEED, RATIO, init_v_x, init_v_y)
+
+    # 悬停并降落
+    hover_and_land(client, list(vehicle_paths.keys()))
+
+    print("✅ 所有无人机飞行任务完成！")
