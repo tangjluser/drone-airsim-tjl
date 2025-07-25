@@ -10,8 +10,6 @@ RATIO = 0.1        # 坐标缩放比
 NUM_DRONES = 8     # 无人机数量
 
 # 每架无人机出生点偏移（相对坐标转为世界坐标）
-# init_v_x = [0 * RATIO + i * 10 * RATIO for i in range(NUM_DRONES)]
-# init_v_y = [0 * RATIO for _ in range(NUM_DRONES)]
 init_v_x = [0.0,10.0,8.0,12.0,16.0,16.0,4.0,12.0]
 init_v_y = [0.0,0.0,8.0,6.0,16.0,10.0,2.0,10.0]
 # init_v_z = [-3.0,-4.0,-3.0,-4.0,-3.0,-4.0,-3.0,-4.0]  #会碰撞
